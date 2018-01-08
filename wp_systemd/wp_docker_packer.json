@@ -1,0 +1,50 @@
+{
+    "variables": {
+        "ansible_host": "local",
+        "ansible_user": "root",
+        "ansible_connection": "docker",
+        "aws_access_key": "{{env `AWS_ACCESS_KEY`}}",
+        "aws_secret_key": "{{env `AWS_SECRET_KEY`}}"
+    },
+
+    "builders": [
+        {
+            "type": "docker",
+            "image": "centos:latest",
+            "privileged": true,
+            "commit": true,
+            "run_command": ["-d", "-i", "-t", "--name", "{{user `ansible_host`}}", "{{.Image}}", "/sbin/init" ],
+            "changes": [
+                "EXPOSE 80",
+                "CMD [\"/sbin/init\"]"
+            ]
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "ansible",
+            "groups": ["local"],
+            "playbook_file": "wp_docker_packer.yml",
+            "extra_arguments": [
+                "--extra-vars",
+                "ansible_user={{user `ansible_user`}} ansible_host={{user `ansible_host`}} ansible_connection={{user `ansible_connection`}}"
+            ]
+        }
+    ],
+    "post-processors": [
+        [
+            {
+                "type": "docker-tag",
+                "repository": "{{user `repository`}}",
+                "tag": "mywpresystemd"
+            },
+            {
+                "type": "docker-push",
+                "ecr_login": true,
+                "aws_access_key": "{{user `aws_access_key`}}",
+                "aws_secret_key": "{{user `aws_secret_key`}}",
+                "login_server": "{{user `login_server`}}"
+            }
+        ]
+    ]
+}
