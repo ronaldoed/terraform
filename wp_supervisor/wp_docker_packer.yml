@@ -1,0 +1,71 @@
+- hosts: local
+  sudo: no
+  gather_facts: no
+  connection: docker
+  handlers:
+    - name: yum-clean-metadata
+      command: yum clean metadata 
+      args: 
+        warn: no
+    - name: restart-nginx
+      service: name=nginx state=reloaded
+
+  tasks:
+    - name: load varialbes
+      include_vars: file=wp_docker_packer_vars.yml
+
+    - name: add nginx repo
+      yum_repository: name=nginx description="nginx web" baseurl={{ nginx_repo }} gpgcheck=no enabled=yes
+      notify: yum-clean-metadata
+
+    - name: install nginx and php-fpm
+      yum: name={{ item }}
+      with_items: ["php", "php-mysql", "php-fpm", "nginx", "python2-devel", "openssl-devel", "gcc", "python-setuptools"]
+    - name: install pip
+      easy_install: name=pip state=latest
+    - name: download wordpress
+      get_url: url="{{ wp_link }}" dest="/tmp/wp.tar.gz"
+    - name: unarchive wordpress
+      unarchive: src="{{ wp_link }}" dest="/usr/share/nginx/html" remote_src=true
+    - name: install supervisor
+      pip: name="supervisor"
+    - copy:
+        src: templates/php-fpm.conf
+        dest: /etc/php-fpm.conf
+        owner: root
+        group: root
+        mode: 0644
+    - copy:
+        src: templates/www.conf
+        dest: /etc/php-fpm.d/www.conf
+        owner: root
+        group: root
+        mode: 0644
+    - copy:
+        src: templates/supervisord.conf
+        dest: /etc/supervisord.conf
+        owner: root
+        group: root
+        mode: 0644
+    - copy:
+        src: templates/nginx.conf
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: 0644
+    - template:
+        src: templates/default.conf.j2
+        dest: /etc/nginx/conf.d/default.conf
+        owner: nginx
+        group: nginx
+        mode: 0644
+    - template:
+        src: templates/wp-config.php.j2
+        dest: /usr/share/nginx/html/wordpress/wp-config.php
+        owner: nginx
+        group: nginx
+        mode: 0644
+       #- name: automate wordpress
+       #shell: "curl http://172.17.0.2/wp-admin/install.php?step=2 --data-urlencode weblog_title={{ wp_title }} --data-urlencode user_name={{ wp_username }} --data-urlencode admin_email={{ wp_email }} --data-urlencode admin_password={{ wp_password }} --data-urlencode admin_password2={{ wp_password }} --data-urlencode pw_weak=1"
+       #args: 
+       # warn: no
